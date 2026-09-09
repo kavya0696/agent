@@ -1,66 +1,239 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <title>Nova AI</title>
-</head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nova AI</title>
 
 <style>
-   body{
-       margin:0;
-       height:100vh;
-       display:grid;
-       place-items:center;
-       background:#09090b;
-       color:white;
-       font-family:Arial;
-    }
+body{
+    margin:0;
+    height:100vh;
+    display:grid;
+    place-items:center;
+    background:#09090b;
+    color:white;
+    font-family:Arial;
+}
 
-    .card{
-        width:300px;
-        padding:35px;
-        text-align:center;
-        background: #151518;
-        border-radius:50%;
-        font-size:35px;
-        cursor: pointer;
-    }
-    .mic{
-       width:90px;
-       height:90px;
-       border:0;
-       border-radius:50%;
-       font-size:35px;
-       cursor:pointer;
-    }
+.card{
+    width:300px;
+    padding:35px;
+    text-align:center;
+    background:#151518;
+    border:1px solid #333;
+    border-radius:25px;
+}
 
-   .status{
-        margin-top:20px;
-        color:#aaa;
-  }
-  .song{
-     margin-top:10px;
-     font-size:13px;
- }
-  .listening{
-         transform:scale(1.1);
-         box-shadow:0 0 0 10px #ffffff18;
- }
+.mic{
+    width:90px;
+    height:90px;
+    border:0;
+    border-radius:50%;
+    font-size:35px;
+    cursor:pointer;
+}
+
+.status{
+    margin-top:20px;
+    color:#aaa;
+}
+
+.song{
+    margin-top:10px;
+    font-size:13px;
+}
+
+.listening{
+    transform:scale(1.1);
+    box-shadow:0 0 0 10px #ffffff18;
+}
 </style>
-    
+</head>
+
 <body>
-    
+
 <div class="card">
-<h2>Nova AI</h2>
-<p>Say a song name</p>
 
-<button id="mic" class="mic">
-</button>
-<div id="status" class="status">
-Tap microphone
-</div> 
+    <h2>Nova AI</h2>
+
+    <p>Say a song name</p>
+
+    <button id="mic" class="mic">
+        🎙️
+    </button>
+
+    <div id="status" class="status">
+        Tap microphone
+    </div>
+
+    <div id="song" class="song"></div>
+
 </div>
-    
-</body>
 
+<script>
+
+const mic=document.getElementById("mic");
+const status=document.getElementById("status");
+const song=document.getElementById("song");
+
+const SpeechRecognition=
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+let youtubeTab=null;
+let listening=false;
+
+if(!SpeechRecognition){
+
+    status.textContent=
+        "Speech recognition unavailable";
+
+    mic.disabled=true;
+
+}else{
+
+    const recognition=
+        new SpeechRecognition();
+
+    recognition.lang="en-US";
+    recognition.continuous=false;
+    recognition.interimResults=false;
+
+    recognition.onstart=()=>{
+
+        listening=true;
+
+        mic.classList.add("listening");
+
+        status.textContent=
+            "Listening...";
+
+    };
+
+    recognition.onend=()=>{
+
+        listening=false;
+
+        mic.classList.remove("listening");
+
+    };
+
+    recognition.onerror=()=>{
+
+        listening=false;
+
+        mic.classList.remove("listening");
+
+        status.textContent="Try again";
+
+    };
+
+    recognition.onresult=async(event)=>{
+
+        const command=
+            event.results[0][0]
+            .transcript
+            .trim();
+
+        if(!command){
+
+            status.textContent=
+                "No song detected";
+
+            return;
+
+        }
+
+        song.textContent=command;
+
+        status.textContent=
+            "Finding song...";
+
+        try{
+
+            const response=
+                await fetch(
+                    "/youtube/play",
+                    {
+                        method:"POST",
+
+                        headers:{
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:JSON.stringify({
+                            command:command
+                        })
+                    }
+                );
+
+            const data=
+                await response.json();
+
+            if(!data.success){
+
+                status.textContent=
+                    data.message ||
+                    "Song not found";
+
+                return;
+
+            }
+
+            if(!youtubeTab ||
+               youtubeTab.closed){
+
+                youtubeTab=
+                    window.open(
+                        data.url,
+                        "NovaYouTube"
+                    );
+
+            }else{
+
+                youtubeTab.location.href=
+                    data.url;
+
+                youtubeTab.focus();
+
+            }
+
+            status.textContent="Playing";
+
+        }catch(error){
+
+            console.error(error);
+
+            status.textContent=
+                "Server connection failed";
+
+        }
+
+    };
+
+    mic.onclick=()=>{
+
+        if(listening)
+            return;
+
+        try{
+
+            recognition.start();
+
+        }catch(error){
+
+            console.log(error);
+
+        }
+
+    };
+
+}
+
+</script>
+
+</body>
 </html>
